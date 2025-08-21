@@ -1,0 +1,122 @@
+body.active-modal {
+  overflow-y: hidden;
+}
+
+.btn-modal {
+  padding: 10px 20px;
+  display: block;
+  margin: 100px auto 0;
+  font-size: 18px;
+}
+
+.modal,
+.overlay {
+  width: 100vw;
+  height: 100vh;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  position: fixed;
+}
+
+.overlay {
+  background: rgba(49, 49, 49, 0.8);
+}
+.modal-content {
+  position: absolute;
+  top: 40%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  line-height: 1.4;
+  background: #f1f1f1;
+  padding: 14px 28px;
+  border-radius: 3px;
+  max-width: 600px;
+  min-width: 300px;
+}
+.modal-content h2 {
+  color: black;
+}
+.close-modal {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  padding: 5px 7px;
+  color: white;
+  border-radius: 5px;
+  background: #ff7c33;
+}
+.chatbot-container {
+  border: 2px solid #ccc;
+  border-radius: 8px;
+  padding: 16px;
+  overflow-y: auto;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  scrollbar-width: thin;
+  scrollbar-color: #ccc transparent;
+}
+/* edit scrollbar */
+.chatbot-container::-webkit-scrollbar {
+  width: 8px;
+}
+
+.chatbot-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.chatbot-container::-webkit-scrollbar-thumb {
+  background-color: #ccc; 
+  border-radius: 8px;
+  border: 2px solid transparent;
+}
+
+.chatbot-container::-webkit-scrollbar-thumb:hover {
+  background-color: #aaa; 
+}
+
+.list_chat_container {
+  border: 2px solid #FF7C33;
+  border-radius: 8px;
+  padding: 12px;
+  max-height: 60vh;
+  overflow-y: auto;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  scrollbar-width: thin;
+  scrollbar-color: #FF7C33 transparent;
+}
+
+@media (min-width: 768px) {
+  .list_chat_container {
+    max-height: 60vh;
+  }
+}
+
+
+.list_chat_container::-webkit-scrollbar {
+  width: 8px;
+}
+
+.list_chat_container::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.list_chat_container::-webkit-scrollbar-thumb {
+  background-color: #FF7C33;
+  border-radius: 8px;
+  border: 2px solid transparent;
+}
+
+.list_chat_container::-webkit-scrollbar-thumb:hover {
+  background-color: #FF5C00;
+}
+
+.custom-toast {
+  white-space: nowrap; 
+  overflow: hidden;
+  text-overflow: ellipsis; 
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
