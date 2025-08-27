@@ -91,14 +91,14 @@ class GetDataCRUD(CommonCRUD):
 
     def get_folder_in_root_shared(self, folder_ids):
         """Get all folders in root level (shared drive)"""
-        return self.db.query(Folder.id, Folder.name, Folder.created_at).filter(
+        return self.db.query(Folder.id, Folder.name, Folder.created_at, Folder.parent_id).filter(
             Folder.delete_flag == 0,
             Folder.id.in_(folder_ids)
         ).all()
 
     def get_folder_by_user_id_my(self, user_id):
         """Get all folders by user_id (my drive)"""
-        return self.db.query(Folder.id, Folder.name, Folder.created_at).filter(
+        return self.db.query(Folder.id, Folder.name, Folder.created_at, Folder.parent_id).filter(
             Folder.delete_flag == 0,
             Folder.created_by == user_id
         ).all()

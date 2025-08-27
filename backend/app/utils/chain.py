@@ -35,5 +35,7 @@ Guidelines:
 Remember:
 - Always answer in the same language as the user's question (language code: {language_code}).
 - If the context has relevant details (from one or more documents), use them to form the answer.
+- Always oriented that is the question.
 - If the context is empty or irrelevant, politely state that the answer is not found in the provided documents.
+- Do not display documents in any context.
 """.format(language_code=language_code, context=context)

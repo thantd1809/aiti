@@ -10,6 +10,8 @@ class ChatHistory(CommonTable):
 
     user_id = Column(String(36), nullable=False)
     talk_title = Column(String(100), nullable=False)
+    selected_file = Column(Text, nullable=True)
+    selected_folder = Column(Text, nullable=True)
 
 
 class ChatHistoryDetail(CommonTable):

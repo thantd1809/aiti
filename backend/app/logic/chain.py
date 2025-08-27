@@ -2,7 +2,7 @@
 The logic for the chatbot chain from OpenAI.
 Chain: question + chat history + docs -> answer.
 """
-from typing import Any, List, AsyncIterator, Optional, Sequence
+from typing import Any, List, AsyncIterator, Optional, Sequence, Dict, Tuple
 from operator import itemgetter
 import asyncio
 
@@ -49,16 +49,73 @@ def get_embeddings_model() -> Embeddings:
     return OpenAIEmbeddings(chunk_size=200)
 
 
-def get_retriever(user_id: str = None, file_ids: Optional[List[str]] = None) -> BaseRetriever:
+# def get_retriever(user_id: str = None, file_ids: Optional[List[str]] = None) -> BaseRetriever:
+#     """
+#     Returns the retriever to be used in the chain.
+
+#     Args:
+#         user_id: Optional user ID to filter documents by permission
+#         file_ids: Optional list of file IDs to filter documents by
+
+#     Returns:
+#         A retriever that filters by user_id if provided
+#     """
+#     vector_store = PGVector(
+#         collection_name=settings.COLLECTION_NAME,
+#         connection_string=settings.DATABASE_URL,
+#         embedding_function=get_embeddings_model(),
+#     )
+
+#     base_retriever = vector_store.as_retriever(search_kwargs=dict(k=4))
+
+#     # If user_id is provided, filter documents by user_id
+#     if user_id is not None:
+#         # Create a filtered retriever that only returns documents uploaded by this user
+#         class UserFilteredRetriever(BaseRetriever):
+#             """Retriever that filters by user_id"""
+
+#             def _filter_docs(self, docs):
+#                 accessible_file_ids = set(file_ids or [])
+
+#                 filtered = []
+#                 for doc in docs:
+#                     file_id = doc.metadata.get("file_id")
+#                     if file_id in accessible_file_ids:
+#                         filtered.append(doc)
+#                 return filtered
+            
+#             def _get_relevant_documents(self, query: str, *, run_manager=None, **kwargs):
+#                 docs = base_retriever._get_relevant_documents(query, run_manager=run_manager, **kwargs)
+#                 return self._filter_docs(docs)
+
+#             async def _aget_relevant_documents(self, query: str, *, run_manager=None, **kwargs):
+#                 docs = await base_retriever._aget_relevant_documents(query, run_manager=run_manager, **kwargs)
+#                 return self._filter_docs(docs)
+
+#         return UserFilteredRetriever()
+
+#     return base_retriever
+
+def get_retriever(
+    user_id: Optional[str] = None,
+    file_ids: Optional[List[str]] = None,
+    mode: str = "per_file",   # "per_file" or "balanced"
+    per_file_k: int = 2,
+    balanced_top_k: int = 10,
+    per_file_limit: int = 2,
+) -> BaseRetriever:
     """
-    Returns the retriever to be used in the chain.
+    Returns the retriever with two modes:
+    - per_file: retrieve k docs per file and merge
+    - balanced: retrieve top_k docs overall, then balance across files
 
     Args:
-        user_id: Optional user ID to filter documents by permission
-        file_ids: Optional list of file IDs to filter documents by
-
-    Returns:
-        A retriever that filters by user_id if provided
+        user_id: Optional user ID to filter documents
+        file_ids: Optional list of file IDs to filter documents
+        mode: Retrieval mode
+        per_file_k: number of docs per file in "per_file" mode
+        balanced_top_k: total docs to fetch before balancing in "balanced" mode
+        per_file_limit: max docs per file in "balanced" mode
     """
     vector_store = PGVector(
         collection_name=settings.COLLECTION_NAME,
@@ -66,35 +123,115 @@ def get_retriever(user_id: str = None, file_ids: Optional[List[str]] = None) -> 
         embedding_function=get_embeddings_model(),
     )
 
-    base_retriever = vector_store.as_retriever(search_kwargs=dict(k=4))
+    class UserFilteredRetriever(BaseRetriever):
+        """Retriever supporting both per_file and balanced modes"""
 
-    # If user_id is provided, filter documents by user_id
-    if user_id is not None:
-        # Create a filtered retriever that only returns documents uploaded by this user
-        class UserFilteredRetriever(BaseRetriever):
-            """Retriever that filters by user_id"""
+        def _filter_docs(self, docs: List[Document]) -> List[Document]:
+            """Filter by file_ids and user_id"""
+            filtered = []
+            for doc in docs:
+                fid = doc.metadata.get("file_id")
+                uid = doc.metadata.get("user_id")
+                if file_ids and fid not in file_ids:
+                    continue
+                if user_id and uid != user_id:
+                    continue
+                filtered.append(doc)
+            return filtered
 
-            def _filter_docs(self, docs):
-                accessible_file_ids = set(file_ids or [])
+        def _dedupe_docs(self, docs: List[Document]) -> List[Document]:
+            """Remove duplicate docs (same content + file_id + page if available)"""
+            seen = set()
+            unique = []
+            for doc in docs:
+                key = (doc.page_content, doc.metadata.get("file_id"), doc.metadata.get("page"))
+                if key not in seen:
+                    seen.add(key)
+                    unique.append(doc)
+            return unique
 
-                filtered = []
-                for doc in docs:
-                    file_id = doc.metadata.get("file_id")
-                    if file_id in accessible_file_ids:
-                        filtered.append(doc)
-                return filtered
-            
-            def _get_relevant_documents(self, query: str, *, run_manager=None, **kwargs):
-                docs = base_retriever._get_relevant_documents(query, run_manager=run_manager, **kwargs)
-                return self._filter_docs(docs)
+        # Public method (LangChain calls this one)
+        def get_relevant_documents(self, query: str, *, run_manager=None, **kwargs) -> List[Document]:
+            if mode == "per_file":
+                return self._per_file_retrieval(query)
+            elif mode == "balanced":
+                return self._balanced_retrieval(query)
+            else:
+                raise ValueError(f"Unknown mode: {mode}")
 
-            async def _aget_relevant_documents(self, query: str, *, run_manager=None, **kwargs):
-                docs = await base_retriever._aget_relevant_documents(query, run_manager=run_manager, **kwargs)
-                return self._filter_docs(docs)
+        async def aget_relevant_documents(self, query: str, *, run_manager=None, **kwargs) -> List[Document]:
+            if mode == "per_file":
+                return await self._aper_file_retrieval(query)
+            elif mode == "balanced":
+                return await self._abalanced_retrieval(query)
+            else:
+                raise ValueError(f"Unknown mode: {mode}")
 
-        return UserFilteredRetriever()
+        # ---- per-file retriever ----
+        def _per_file_retrieval(self, query: str) -> List[Document]:
+            results: List[Document] = []
+            for fid in (file_ids or []):
+                docs_scores: List[Tuple[Document, float]] = vector_store.similarity_search_with_score(
+                    query, k=per_file_k, filter={"file_id": fid}
+                )
+                docs = [doc for doc, _ in docs_scores]
+                results.extend(self._filter_docs(docs))
+            return self._dedupe_docs(results)
 
-    return base_retriever
+        async def _aper_file_retrieval(self, query: str) -> List[Document]:
+            results: List[Document] = []
+            for fid in (file_ids or []):
+                docs_scores: List[Tuple[Document, float]] = await vector_store.asimilarity_search_with_score(
+                    query, k=per_file_k, filter={"file_id": fid}
+                )
+                docs = [doc for doc, _ in docs_scores]
+                results.extend(self._filter_docs(docs))
+            return self._dedupe_docs(results)
+
+        # ---- balanced retriever ----
+        def _balanced_retrieval(self, query: str) -> List[Document]:
+            docs_scores: List[Tuple[Document, float]] = vector_store.similarity_search_with_score(
+                query, k=balanced_top_k
+            )
+            docs = [doc for doc, _ in docs_scores]
+            docs = self._filter_docs(docs)
+
+            if not file_ids:
+                return self._dedupe_docs(docs)
+
+            grouped: Dict[str, List[Document]] = {}
+            for d in docs:
+                fid = d.metadata.get("file_id")
+                grouped.setdefault(fid, []).append(d)
+
+            balanced_docs = []
+            for fid, group in grouped.items():
+                balanced_docs.extend(group[:per_file_limit])
+
+            return self._dedupe_docs(balanced_docs)
+
+        async def _abalanced_retrieval(self, query: str) -> List[Document]:
+            docs_scores: List[Tuple[Document, float]] = await vector_store.asimilarity_search_with_score(
+                query, k=balanced_top_k
+            )
+            docs = [doc for doc, _ in docs_scores]
+            docs = self._filter_docs(docs)
+
+            if not file_ids:
+                return self._dedupe_docs(docs)
+
+            grouped: Dict[str, List[Document]] = {}
+            for d in docs:
+                fid = d.metadata.get("file_id")
+                grouped.setdefault(fid, []).append(d)
+
+            balanced_docs = []
+            for fid, group in grouped.items():
+                balanced_docs.extend(group[:per_file_limit])
+
+            return self._dedupe_docs(balanced_docs)
+
+    return UserFilteredRetriever()
 
 
 def create_retriever_chain(

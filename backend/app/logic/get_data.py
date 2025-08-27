@@ -216,7 +216,7 @@ class GetDataLogic:
                 files = user_files + shared_files_in_folders + shared_files_direct
 
             # Remove duplicates
-            folder_data = {f[0]: {"id": f[0], "name": f[1], "created_at": f[2]} for f in folders}
+            folder_data = {f[0]: {"id": f[0], "name": f[1], "created_at": f[2], "parent_id": f[3]} for f in folders}
             file_data = {f[0]: {"id": f[0], "name": f[1], "created_at": f[2]} for f in files}
 
             return OutputResponse.success(data={

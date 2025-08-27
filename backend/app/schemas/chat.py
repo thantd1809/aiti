@@ -61,6 +61,8 @@ class ChatHistoryRequest(BaseModel):
     The request body for the chat-history endpoint.
     """
     talk_title: str
+    selected_files: Optional[str] = None
+    selected_folders: Optional[str] = None
     detail: Optional[ChatHistoryDetailRequest]
     # language: Optional[Literal["vi", "jp", "en"]] = Field(default="vi", description="Response language (vi: Vietnamese, jp: Japanese, en: English)")
 

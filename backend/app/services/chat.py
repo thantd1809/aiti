@@ -117,23 +117,32 @@ class ChatCRUD(CommonCRUD):
             self.db.rollback()
             raise ex
 
-    def get_by_chat_id(self, chat_id, user_id: str):
+    def get_by_chat_id(self, chat_id: str, user_id: str):
         """
-        Get a chat by chat id
+        Get a chat and its details
         """
         try:
-            # Check chat exists with the given id
+            # Get chat record
             chat = self.db.query(ChatHistory).filter(
                 ChatHistory.id == chat_id,
                 ChatHistory.user_id == user_id,
-                ChatHistory.delete_flag == 0).first()
+                ChatHistory.delete_flag == 0
+            ).first()
 
             if not chat:
                 return None
 
-            return self.db.query(ChatHistoryDetail).filter(
+            # Get chat details
+            details = self.db.query(ChatHistoryDetail).filter(
                 ChatHistoryDetail.chat_histories_id == chat_id,
-                ChatHistoryDetail.delete_flag == 0).all()
+                ChatHistoryDetail.delete_flag == 0
+            ).all()
+
+            # Return combined object
+            return {
+                "chat": chat,
+                "details": details
+            }
         except Exception as ex:
             self.db.rollback()
             raise ex
@@ -144,7 +153,8 @@ class ChatCRUD(CommonCRUD):
         """
         try:
             # Define the conditions
-            conditions = (ChatHistory.user_id == login_user_id) & (ChatHistory.delete_flag == 0)
+            conditions = (ChatHistory.user_id == login_user_id) & (
+                ChatHistory.delete_flag == 0)
             if search:
                 conditions = conditions & (
                     ChatHistory.talk_title.ilike(f"%{search}%"))
@@ -180,6 +190,28 @@ class ChatCRUD(CommonCRUD):
             self.db.execute(update_stmt)
 
             # Commit the changes to the database
+            self.db.commit()
+            return 1
+        except Exception as ex:
+            self.db.rollback()
+            raise ex
+
+    def update(self, id, selected_file, selected_folder, current_date_time, login_user_id):
+        """Update selected_file and selected_folder in chat history"""
+        try:
+            stmt = (
+                update(ChatHistory)
+                .values(
+                    selected_file=selected_file,
+                    selected_folder=selected_folder,
+                    updated_by=login_user_id,
+                    updated_at=current_date_time
+                )
+                .where(ChatHistory.id == id)
+                .where(ChatHistory.delete_flag == 0)
+            )
+
+            self.db.execute(stmt)
             self.db.commit()
             return 1
         except Exception as ex:
